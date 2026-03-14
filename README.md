@@ -215,6 +215,11 @@ If `py -3.13` is not available, install the non–free-threaded Python 3.13 from
     1) decode btsnoop with btmon,
     2) extract raw writes to `fa02`,
     3) replay the sequence to the panel.
+- `scripts/native_scroll_poc.py`
+  - Replays an extracted animated-text sequence with control-packet variants:
+    - `full`: replay all packets
+    - `no-tail`: drop final tail control packet
+    - `minimal`: drop inferred non-essential control packets
 
   Prints the fonts resolved from `assets/fonts/`. Bundled names and defaults:
   - `Aldo PC`

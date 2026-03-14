@@ -210,6 +210,11 @@ If `py -3.13` is not available, install the non–free-threaded Python 3.13 from
 - `scripts/increment_counter.py` – numeric animation for diagnostics.
 - `scripts/identify_panels.py` – flashes digits on each configured panel.
 - `scripts/list_fonts.py`
+- `scripts/extract_fa02_sequence.py` + `scripts/replay_fa02_sequence.py`
+  - Python PoC helpers for reverse engineering native iPixel flows:
+    1) decode btsnoop with btmon,
+    2) extract raw writes to `fa02`,
+    3) replay the sequence to the panel.
 
   Prints the fonts resolved from `assets/fonts/`. Bundled names and defaults:
   - `Aldo PC`

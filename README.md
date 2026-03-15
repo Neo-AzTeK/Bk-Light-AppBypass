@@ -51,13 +51,15 @@ If `py -3.13` is not available, install the non–free-threaded Python 3.13 from
 - `panel_manager.py` – orchestrates single/multi-panel sessions and image slicing.
 - `display_session.py` – BLE transport: handshake, ACK tracking, brightness/rotation, auto-reconnect.
 - `production.py` – production entrypoint that reads `config.yaml` and runs the selected mode/preset.
-- Toolkit scripts (still usable standalone):
-  - `clock_display.py`
-  - `display_text.py`
-  - `send_image.py`
-  - `increment_counter.py`
-  - `identify_panels.py`
-- Legacy smoke tests: `bootstrap_demo.py`, `red_corners.py`.
+- Toolkit scripts (standalone):
+  - `scripts/clock_display.py`
+  - `scripts/display_text.py`
+  - `scripts/native_text_scroll_send.py`
+  - `scripts/send_image.py`
+  - `scripts/increment_counter.py`
+  - `scripts/identify_panels.py`
+  - `scripts/list_fonts.py`
+- Legacy smoke tests: `scripts/bootstrap_demo.py`, `scripts/red_corners.py`.
 
 ## Quick Start
 
@@ -182,56 +184,33 @@ If `py -3.13` is not available, install the non–free-threaded Python 3.13 from
 ## Toolkit Scripts
 
 - `scripts/clock_display.py` – async HH:MM clock (supports 12/24h, dot flashing, themes). Exit with `Ctrl+C` so the BLE session closes cleanly and you can relaunch immediately.
-- `scripts/display_text.py` – renders text using presets (colour/background/font/spacing) or marquee scrolls.
+- `scripts/display_text.py` – text rendering entrypoint.
+  - `--mode static`: regular rendered frame via legacy image path.
+  - `--mode scroll`: **native 5-packet text path** (single lightweight BLE session).
+  - supports `--color`, `--background`, and `--effect` (`fixed`, `scroll-left`, `scroll-right`, `blinking`, `breathing`, `snowflake`, `laser`).
 
-  Example scroll preset in `config.yaml`:
-
-  ```yaml
-  text:
-    marquee_left:
-      mode: scroll
-      direction: left
-      speed: 30.0
-      step: 3          # pixels moved per frame
-      gap: 32
-      size: 18
-      spacing: 2
-      offset_y: 0
-      interval: 0.04
-  ```
-
-  Launch:
+  Launch examples:
 
   ```bash
-  python scripts/display_text.py "HELLO" --preset marquee_left
+  python scripts/display_text.py "HI" --mode scroll --effect scroll-left --color "#ffffff"
+  python scripts/display_text.py "HI" --mode scroll --effect laser --color "#00ff00" --background "#000000"
+  ```
+
+- `scripts/native_text_scroll_send.py` – low-level native text sender (5 packets).
+  - useful for protocol testing and effect validation.
+  - current packet format uses a 2-char payload window.
+
+  ```bash
+  python scripts/native_text_scroll_send.py "HI" --effect blinking --color "#ffffff"
+  python scripts/native_text_scroll_send.py "HI" --effect scroll-right --font-profile ipixel
   ```
 
 - `scripts/send_image.py` – uploads any image with fit/cover/scale + rotate/mirror/invert.
 - `scripts/increment_counter.py` – numeric animation for diagnostics.
 - `scripts/identify_panels.py` – flashes digits on each configured panel.
-- `scripts/list_fonts.py`
-- `scripts/extract_fa02_sequence.py` + `scripts/replay_fa02_sequence.py`
-  - Python PoC helpers for reverse engineering native iPixel flows:
-    1) decode btsnoop with btmon,
-    2) extract raw writes to `fa02`,
-    3) replay the sequence to the panel.
-- `scripts/native_scroll_poc.py`
-  - Replays an extracted animated-text sequence with control-packet variants:
-    - `full`: replay all packets
-    - `no-tail`: drop final tail control packet
-    - `minimal`: drop inferred non-essential control packets
+- `scripts/list_fonts.py` – prints fonts resolved from `assets/fonts/`.
 
-  Prints the fonts resolved from `assets/fonts/`. Bundled names and defaults:
-  - `Aldo PC`
-  - `Dolce Vita Light`
-  - `Kenyan Coffee Rg`
-  - `Kimberley Bl`
-
-  ```bash
-  python scripts/list_fonts.py [--config config.yaml]
-  ```
-
-Each script honours `--config`, `--address`, and preset overrides so you can reuse the same YAML in development or production.
+Each script honours `--config`, `--address`, and preset overrides where applicable so you can reuse the same YAML in development or production.
 
 ## Building New Effects
 

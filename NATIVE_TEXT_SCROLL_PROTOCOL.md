@@ -36,3 +36,5 @@ For current goal (reliable scrolling text), this short native path is preferred.
 
 - Success criterion remains visual panel rendering, not BLE write success.
 - Handshake in client must remain dynamic (time-derived), not hardcoded.
+- APK wrapper path: `ImageTextListActivity.sendTextData2(...)` and `TextActivity.sendByteArray(...)` both end up in `SendCore.sendTextDataInvokFun2(...)`, which wraps channel text/image payloads through `SendCore.payloadChannel(type=4)` into the final `0x45 00 00 01 ... 0x36 ...` packet.
+- Font mapping source: no standalone native glyph table was found in smali. The general text stack is bitmap-based (`TextAgreement.getCharBitmap*()` -> `TextAgreement.getTextData()`), so the lightweight 10-byte native glyph cells used here were reconstructed from known captures. `A` and `B` come directly from `tmp/fa02_from_btsnoop_latest.txt`; the remaining uppercase glyphs and space were rebuilt to the same bold 8x10 style in [`scripts/ipixel_font_map.py`](/home/agent/.openclaw/workspace/projects/Bk-Light-AppBypass/scripts/ipixel_font_map.py).

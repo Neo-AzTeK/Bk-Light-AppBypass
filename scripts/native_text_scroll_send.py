@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
-import zlib
 import sys
+import zlib
 from datetime import datetime
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
-
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from bk_light.display_session import BleDisplaySession, UUID_WRITE
+from scripts.ipixel_font_map import glyph_8x10_ipixel, validate_known_glyphs
 
 
 BASE_PAYLOAD = bytes.fromhex(
@@ -18,31 +17,13 @@ BASE_PAYLOAD = bytes.fromhex(
 )
 
 
-def glyph_8x10(ch: str) -> bytes:
-    # Render a single char in an 8x10 monochrome cell, row-packed into 10 bytes.
-    img = Image.new("1", (8, 10), 0)
-    d = ImageDraw.Draw(img)
-    font = ImageFont.load_default()
-    # Slight offset to center baseline reasonably for default font
-    d.text((0, -1), ch, 1, font=font)
-
-    out = bytearray()
-    for y in range(10):
-        row = 0
-        for x in range(8):
-            if img.getpixel((x, y)):
-                row |= 1 << (7 - x)
-        out.append(row)
-    return bytes(out)
-
-
 def build_content_payload(text2: str, channel: int) -> bytes:
     text2 = (text2 or "  ")[:2].ljust(2)
     p = bytearray(BASE_PAYLOAD)
     p[14] = channel & 0xFF
 
-    g1 = glyph_8x10(text2[0])
-    g2 = glyph_8x10(text2[1])
+    g1 = glyph_8x10_ipixel(text2[0])
+    g2 = glyph_8x10_ipixel(text2[1])
     p[36:46] = g1
     p[56:66] = g2
 
@@ -84,6 +65,17 @@ if __name__ == "__main__":
     ap.add_argument("--channel", type=int, default=3)
     ap.add_argument("--interval", type=float, default=0.06)
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument(
+        "--validate-font",
+        action="store_true",
+        help="Validate recovered native glyphs against known A/B captures and exit",
+    )
     args = ap.parse_args()
+
+    if args.validate_font:
+        results = validate_known_glyphs()
+        for ch, ok in sorted(results.items()):
+            print(f"{ch}: {'ok' if ok else 'mismatch'}")
+        raise SystemExit(0 if all(results.values()) else 1)
 
     asyncio.run(run(args.address, args.text, args.channel, args.interval, args.verbose))

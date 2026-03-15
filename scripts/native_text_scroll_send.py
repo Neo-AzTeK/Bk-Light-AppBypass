@@ -114,11 +114,9 @@ def text_windows(message: str) -> list[str]:
 
 
 def choose_transport(text: str) -> str:
-    length = len(text or "")
-    if length <= 2:
-        return TRANSPORT_45
-    if build_text_record_body_length(length) + F9_HEADER_BYTES <= 249:
-        return TRANSPORT_F9
+    # Unified rule from empirical validation: use A1 for all dynamic text lengths.
+    # Keep 0x45 as explicit manual override only.
+    _ = len(text or "")
     return TRANSPORT_A1
 
 
@@ -453,7 +451,7 @@ if __name__ == "__main__":
     ap.add_argument(
         "--transport",
         choices=(TRANSPORT_45, TRANSPORT_F9, TRANSPORT_A1),
-        help=f"Force a native transport. Default is auto: <=2 `{TRANSPORT_45}`, <=11 `{TRANSPORT_F9}`, >11 `{TRANSPORT_A1}`",
+        help=f"Force a native transport. Default auto route is `{TRANSPORT_A1}` for all text lengths.",
     )
     ap.add_argument(
         "--a1-chunk-size",

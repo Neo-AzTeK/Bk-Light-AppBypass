@@ -17,17 +17,11 @@ from bk_light.text import build_text_bitmap
 from bk_light.display_session import BleDisplaySession, UUID_WRITE
 from scripts.native_text_scroll_send import (
     EFFECT_CODES,
-    REVERSE_FOR_EFFECT,
     TRANSPORT_A1,
-    TRANSPORT_F9,
     packet_debug_info,
-    build_content_payload,
     build_a1_payload,
     build_handshake,
-    build_long_text_payload,
-    choose_transport,
     chunk_payload,
-    text_windows,
 )
 
 
@@ -93,8 +87,7 @@ async def send_native_scroll(
     effect: str = "scroll-left",
 ) -> None:
     effect_code = EFFECT_CODES.get(effect, EFFECT_CODES["scroll-left"])
-    windows = text_windows(message)
-    mode = choose_transport(message)
+    mode = TRANSPORT_A1
     async with BleDisplaySession(address=config.device.address, log_notifications=False) as session:
         for pkt in (
             build_handshake(),
@@ -105,63 +98,21 @@ async def send_native_scroll(
             await session.client.write_gatt_char(UUID_WRITE, pkt, response=False)
             await asyncio.sleep(interval)
 
-        if mode == TRANSPORT_A1:
-            payload = build_a1_payload(
-                message,
-                fg_color=fg_color,
-                bg_color=bg_color,
-                effect_code=effect_code,
-            )
-            debug = packet_debug_info(payload, mode, message)
-            print(
-                f"native-text route={debug['route']} chars={debug['chars']} body_len={debug['body_len']} "
-                f"packet_len={debug['packet_len']} chunks={debug['chunk_count']} "
-                f"crc=0x{debug['crc']:08x}"
-            )
-            for chunk in chunk_payload(payload):
-                await session.client.write_gatt_char(UUID_WRITE, chunk, response=False)
-                await asyncio.sleep(interval)
-        elif mode == TRANSPORT_F9:
-            payload = build_long_text_payload(
-                message,
-                channel,
-                fg_color=fg_color,
-                bg_color=bg_color,
-                effect_code=effect_code,
-            )
-            debug = packet_debug_info(payload, mode, message)
-            print(
-                f"native-text route={debug['route']} chars={debug['chars']} body_len={debug['body_len']} "
-                f"packet_len={debug['packet_len']} chunks={debug['chunk_count']} "
-                f"crc=0x{debug['crc']:08x}"
-            )
-            await session.client.write_gatt_char(UUID_WRITE, payload, response=False)
+        payload = build_a1_payload(
+            message,
+            fg_color=fg_color,
+            bg_color=bg_color,
+            effect_code=effect_code,
+        )
+        debug = packet_debug_info(payload, message)
+        print(
+            f"native-text route={debug['route']} chars={debug['chars']} body_len={debug['body_len']} "
+            f"packet_len={debug['packet_len']} chunks={debug['chunk_count']} "
+            f"crc=0x{debug['crc']:08x}"
+        )
+        for chunk in chunk_payload(payload):
+            await session.client.write_gatt_char(UUID_WRITE, chunk, response=False)
             await asyncio.sleep(interval)
-        else:
-            sample_payload = build_content_payload(
-                windows[0][::-1] if effect in REVERSE_FOR_EFFECT else windows[0],
-                channel,
-                fg_color=fg_color,
-                bg_color=bg_color,
-                effect_code=effect_code,
-            )
-            debug = packet_debug_info(sample_payload, mode, message)
-            print(
-                f"native-text route={debug['route']} chars={debug['chars']} body_len={debug['body_len']} "
-                f"packet_len={debug['packet_len']} chunks={len(windows)} "
-                f"crc=0x{debug['crc']:08x}"
-            )
-            for window in windows:
-                visible = window[::-1] if effect in REVERSE_FOR_EFFECT else window
-                payload5 = build_content_payload(
-                    visible,
-                    channel,
-                    fg_color=fg_color,
-                    bg_color=bg_color,
-                    effect_code=effect_code,
-                )
-                await session.client.write_gatt_char(UUID_WRITE, payload5, response=False)
-                await asyncio.sleep(0.22 if len(windows) > 1 else interval)
 
 
 async def display_text(config: AppConfig, message: str, preset_name: str, overrides: dict[str, Optional[str]]) -> None:

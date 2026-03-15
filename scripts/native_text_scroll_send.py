@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """Native text sender for the ACT1025 panel.
 
-Supports:
-- short `0x45` 2-glyph packets
-- `0xF9` single-packet text records
-- long type-4 channel payloads seen in captures as `a1 08 00 01 ...`
+Uses the validated A1/type-4 native transport path.
 """
 
 import argparse
@@ -22,11 +19,8 @@ BASE_PAYLOAD = bytes.fromhex(
     "45000001003600000000000000000202000101015000ffffff0000000000ffffff000000"
     "0000000000000000000000000000ffffff00000000000000000000000000000000"
 )
-LONG_TEXT_MAGIC = bytes.fromhex("f9000001")
-F9_MAX_GLYPHS = 11
 A1_ROUTE_MARKER = 0x65
 A1_CHUNK_SIZE = 509
-F9_HEADER_BYTES = 15
 A1_HEADER_BYTES = 15
 
 
@@ -100,24 +94,7 @@ EFFECT_CODES = {
 
 REVERSE_FOR_EFFECT = set()
 
-TRANSPORT_45 = "45"
-TRANSPORT_F9 = "f9"
 TRANSPORT_A1 = "a1"
-
-
-def text_windows(message: str) -> list[str]:
-    txt = message or "  "
-    if len(txt) <= 2:
-        return [txt.ljust(2)]
-    # Overlapping 2-char windows: HELLO -> HE, EL, LL, LO
-    return [txt[i:i + 2] for i in range(len(txt) - 1)]
-
-
-def choose_transport(text: str) -> str:
-    # Unified rule from empirical validation: use A1 for all dynamic text lengths.
-    # Keep 0x45 as explicit manual override only.
-    _ = len(text or "")
-    return TRANSPORT_A1
 
 
 def build_content_payload(
@@ -198,39 +175,6 @@ def build_text_record_body(
     return bytes(body)
 
 
-def build_long_text_payload(
-    text: str,
-    channel: int,
-    fg_color: tuple[int, int, int] = (255, 255, 255),
-    bg_color: tuple[int, int, int] = (0, 0, 0),
-    font_profile: str = "ipixel",
-    effect_code: int = 1,
-) -> bytes:
-    text = text or " "
-    if len(text) > F9_MAX_GLYPHS:
-        raise ValueError(
-            f"native `0xF9` path supports up to {F9_MAX_GLYPHS} glyphs; got {len(text)}"
-        )
-
-    body = build_text_record_body(
-        text,
-        fg_color=fg_color,
-        bg_color=bg_color,
-        font_profile=font_profile,
-        effect_code=effect_code,
-    )
-
-    packet = bytearray(LONG_TEXT_MAGIC)
-    packet.extend(len(body).to_bytes(2, "big"))
-    packet.extend(b"\x00\x00\x00")
-    packet.extend(b"\x00\x00\x00\x00")
-    packet.extend((0x00, channel & 0xFF))
-    packet.extend(body)
-    crc = zlib.crc32(bytes(packet[15:])) & 0xFFFFFFFF
-    packet[9:13] = crc.to_bytes(4, "little")
-    return bytes(packet)
-
-
 def build_a1_total_data(
     text: str,
     fg_color: tuple[int, int, int] = (255, 255, 255),
@@ -282,33 +226,11 @@ def chunk_payload(payload: bytes, chunk_size: int = A1_CHUNK_SIZE) -> list[bytes
     return [payload[idx:idx + chunk_size] for idx in range(0, len(payload), chunk_size)]
 
 
-def packet_debug_info(payload: bytes, mode: str, text: str, chunk_size: int = A1_CHUNK_SIZE) -> dict[str, int | str]:
-    if mode == TRANSPORT_45:
-        body_len = len(payload) - F9_HEADER_BYTES
-        crc = int.from_bytes(payload[9:13], "little")
-        return {
-            "route": mode,
-            "chars": len(text or ""),
-            "body_len": body_len,
-            "packet_len": len(payload),
-            "chunk_count": 1,
-            "crc": crc,
-        }
-    if mode == TRANSPORT_F9:
-        body_len = int.from_bytes(payload[4:6], "big")
-        crc = int.from_bytes(payload[9:13], "little")
-        return {
-            "route": mode,
-            "chars": len(text or ""),
-            "body_len": body_len,
-            "packet_len": len(payload),
-            "chunk_count": 1,
-            "crc": crc,
-        }
+def packet_debug_info(payload: bytes, text: str, chunk_size: int = A1_CHUNK_SIZE) -> dict[str, int | str]:
     body_len = int.from_bytes(payload[5:9], "little")
     crc = int.from_bytes(payload[9:13], "little")
     return {
-        "route": mode,
+        "route": TRANSPORT_A1,
         "chars": len(text or ""),
         "body_len": body_len,
         "packet_len": len(payload),
@@ -332,18 +254,13 @@ async def run(
     bg_color: tuple[int, int, int],
     font_profile: str,
     effect: str,
-    window_interval: float,
-    transport: str | None,
     a1_chunk_size: int,
 ):
     from bk_light.display_session import BleDisplaySession, UUID_WRITE
 
     effect_code = EFFECT_CODES[effect]
-    windows = text_windows(text)
-    mode = transport or choose_transport(text)
 
     async with BleDisplaySession(address=address, log_notifications=verbose) as s:
-        # One connection/handshake, then push one or multiple text windows.
         base_seq = [
             build_handshake(),
             bytes.fromhex("04000580"),
@@ -356,89 +273,37 @@ async def run(
             if verbose:
                 print("sent", i)
 
-        if mode == TRANSPORT_A1:
-            payload = build_a1_payload(
-                text,
-                fg_color=fg_color,
-                bg_color=bg_color,
-                font_profile=font_profile,
-                effect_code=effect_code,
+        payload = build_a1_payload(
+            text,
+            fg_color=fg_color,
+            bg_color=bg_color,
+            font_profile=font_profile,
+            effect_code=effect_code,
+        )
+        chunks = chunk_payload(payload, a1_chunk_size)
+        debug = packet_debug_info(payload, text, a1_chunk_size)
+        if verbose:
+            print(
+                f"route={debug['route']} chars={debug['chars']} body_len={debug['body_len']} "
+                f"packet_len={debug['packet_len']} chunks={debug['chunk_count']} "
+                f"crc=0x{debug['crc']:08x} route_marker=0x{payload[14]:02x} "
+                f"chunk_sizes={[len(chunk) for chunk in chunks]}"
             )
-            chunks = chunk_payload(payload, a1_chunk_size)
-            debug = packet_debug_info(payload, mode, text, a1_chunk_size)
+        for idx, chunk in enumerate(chunks, 1):
             if verbose:
-                print(
-                    f"route={debug['route']} chars={debug['chars']} body_len={debug['body_len']} "
-                    f"packet_len={debug['packet_len']} chunks={debug['chunk_count']} "
-                    f"crc=0x{debug['crc']:08x} route_marker=0x{payload[14]:02x} "
-                    f"chunk_sizes={[len(chunk) for chunk in chunks]}"
-                )
-            for idx, chunk in enumerate(chunks, 1):
-                if verbose:
-                    print(f"chunk {idx}/{len(chunks)} bytes={len(chunk)}")
-                    if idx == 1:
-                        print("payload5", chunk.hex())
-                await s.client.write_gatt_char(UUID_WRITE, chunk, response=False)
-                await asyncio.sleep(interval)
-        elif mode == TRANSPORT_F9:
-            payload = build_long_text_payload(
-                text,
-                channel,
-                fg_color=fg_color,
-                bg_color=bg_color,
-                font_profile=font_profile,
-                effect_code=effect_code,
-            )
-            debug = packet_debug_info(payload, mode, text, a1_chunk_size)
-            if verbose:
-                print(
-                    f"route={debug['route']} chars={debug['chars']} body_len={debug['body_len']} "
-                    f"packet_len={debug['packet_len']} chunks={debug['chunk_count']} "
-                    f"crc=0x{debug['crc']:08x}"
-                )
-                print("payload5", payload.hex())
-            await s.client.write_gatt_char(UUID_WRITE, payload, response=False)
+                print(f"chunk {idx}/{len(chunks)} bytes={len(chunk)}")
+                if idx == 1:
+                    print("payload5", chunk.hex())
+            await s.client.write_gatt_char(UUID_WRITE, chunk, response=False)
             await asyncio.sleep(interval)
-        else:
-            sample_payload = build_content_payload(
-                windows[0][::-1] if effect in REVERSE_FOR_EFFECT else windows[0],
-                channel,
-                fg_color=fg_color,
-                bg_color=bg_color,
-                font_profile=font_profile,
-                effect_code=effect_code,
-            )
-            debug = packet_debug_info(sample_payload, mode, text, a1_chunk_size)
-            for idx, window in enumerate(windows, 1):
-                visible = window[::-1] if effect in REVERSE_FOR_EFFECT else window
-                payload5 = build_content_payload(
-                    visible,
-                    channel,
-                    fg_color=fg_color,
-                    bg_color=bg_color,
-                    font_profile=font_profile,
-                    effect_code=effect_code,
-                )
-                if verbose:
-                    if idx == 1:
-                        print(
-                            f"route={debug['route']} chars={debug['chars']} windows={len(windows)} "
-                            f"body_len={debug['body_len']} packet_len={debug['packet_len']} "
-                            f"chunks={debug['chunk_count']} crc=0x{debug['crc']:08x}"
-                        )
-                    print(f"window {idx}/{len(windows)} raw={window!r} visible={visible!r}")
-                    print("payload5", payload5.hex())
-                await s.client.write_gatt_char(UUID_WRITE, payload5, response=False)
-                await asyncio.sleep(window_interval if len(windows) > 1 else interval)
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(description="Send native ACT1025 text payloads (`0x45`, `0xF9`, or type-4/A1)")
+    ap = argparse.ArgumentParser(description="Send native ACT1025 text payloads using the A1/type-4 transport")
     ap.add_argument("text", help="Text to display")
     ap.add_argument("--address", default="31:C3:BD:32:14:7A")
     ap.add_argument("--channel", type=int, default=3)
     ap.add_argument("--interval", type=float, default=0.06)
-    ap.add_argument("--window-interval", type=float, default=0.22, help="Delay between 2-char windows when text length > 2")
     ap.add_argument("--color", default="#ffffff", help="Foreground color (#RRGGBB)")
     ap.add_argument("--background", default="#000000", help="Background color (#RRGGBB)")
     ap.add_argument("--font-profile", default="ipixel", choices=("ipixel", "pixeloid", "square-bold"))
@@ -447,11 +312,6 @@ if __name__ == "__main__":
         default="scroll-left",
         choices=("fixed", "scroll-left", "scroll-right", "blinking", "breathing", "snowflake", "laser"),
         help="Native text effect mapped from iPixel captures",
-    )
-    ap.add_argument(
-        "--transport",
-        choices=(TRANSPORT_45, TRANSPORT_F9, TRANSPORT_A1),
-        help=f"Force a native transport. Default auto route is `{TRANSPORT_A1}` for all text lengths.",
     )
     ap.add_argument(
         "--a1-chunk-size",
@@ -486,8 +346,6 @@ if __name__ == "__main__":
             bg,
             args.font_profile,
             args.effect,
-            args.window_interval,
-            args.transport,
             args.a1_chunk_size,
         )
     )

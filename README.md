@@ -199,8 +199,7 @@ If `py -3.13` is not available, install the non–free-threaded Python 3.13 from
 
 - `scripts/native_text_scroll_send.py` – low-level native text sender.
   - useful for protocol testing and effect validation.
-  - default route is A1/type-4 for all lengths.
-  - `--transport 45|f9|a1` remains available for debug/compat tests.
+  - native route is A1/type-4 for all text lengths.
   - long payloads are sent as chunked continuation writes with verbose chunk logging.
 
   ```bash

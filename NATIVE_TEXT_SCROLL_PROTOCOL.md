@@ -6,8 +6,7 @@ Date: 2026-03-15
 
 After end-to-end hardware validation, the stable routing rule is:
 
-- **Default auto route: `A1` for all text lengths** (`>= 1` char)
-- `0x45` and `0xF9` are kept as manual/debug transports only (`--transport 45|f9|a1`)
+- **Default and supported route: `A1` for all text lengths** (`>= 1` char)
 
 Reason: `A1` is the only route that validated consistently across short, medium, and long strings in our latest tests.
 

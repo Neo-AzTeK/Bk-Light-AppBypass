@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
+from bk_light.fonts import get_font_profile, resolve_font
 from scripts.ipixel_font_map import glyph_8x10_ipixel, validate_known_glyphs
 
 
@@ -63,20 +64,30 @@ def reverse_bits_byte(value: int) -> int:
     return out
 
 
+def _font_render_params(profile: str) -> tuple[Path | None, int, int, int]:
+    font_path = resolve_font(profile)
+    font_profile = get_font_profile(profile, font_path)
+    size = int(font_profile.recommended_size or 10)
+    return font_path, size, int(font_profile.offset_x), int(font_profile.offset_y)
+
+
 def glyph_for_profile(ch: str, profile: str) -> bytes:
-    profile = profile.lower()
-    if profile == "ipixel":
+    profile = (profile or "ipixel").strip()
+    profile_key = profile.lower()
+
+    # Keep the native iPixel reference map for exact known glyphs, then fallback to
+    # the shared font logic from bk_light/fonts.py.
+    if profile_key == "ipixel":
         try:
             raw = glyph_8x10_ipixel(ch)
         except KeyError:
-            raw = glyph_8x10_pil(ch, font_path=None, size=10, xoff=0, yoff=-1)
-    elif profile == "pixeloid":
-        fp = Path("/home/agent/.openclaw/workspace/tmp/ipixel_apktool/assets/fonts/PixeloidSans.ttf")
-        raw = glyph_8x10_pil(ch, font_path=fp, size=10, xoff=0, yoff=-1)
-    elif profile == "square-bold":
+            font_path, size, xoff, yoff = _font_render_params("ipixel")
+            raw = glyph_8x10_pil(ch, font_path=font_path, size=size, xoff=xoff, yoff=yoff)
+    elif profile_key == "square-bold":
         raw = glyph_8x10_pil(ch, font_path=None, size=10, xoff=0, yoff=-1)
     else:
-        raise ValueError(f"unknown font profile: {profile}")
+        font_path, size, xoff, yoff = _font_render_params(profile)
+        raw = glyph_8x10_pil(ch, font_path=font_path, size=size, xoff=xoff, yoff=yoff)
 
     # Panel-native text packets expect mirrored bit order vs our logical glyph rows.
     return bytes(reverse_bits_byte(b) for b in raw)
@@ -306,7 +317,11 @@ if __name__ == "__main__":
     ap.add_argument("--interval", type=float, default=0.06)
     ap.add_argument("--color", default="#ffffff", help="Foreground color (#RRGGBB)")
     ap.add_argument("--background", default="#000000", help="Background color (#RRGGBB)")
-    ap.add_argument("--font-profile", default="ipixel", choices=("ipixel", "pixeloid", "square-bold"))
+    ap.add_argument(
+        "--font-profile",
+        default="ipixel",
+        help="Font reference resolved through bk_light/fonts.py (e.g. ipixel, Aldo PC, Dolce Vita Light, or a font path)",
+    )
     ap.add_argument(
         "--effect",
         default="scroll-left",

@@ -27,6 +27,8 @@ FONT_PROFILES: dict[str, FontProfile] = {
     "dolcevitalight": FontProfile(recommended_size=14, offset_y=-1, colon_dx=1, colon_top_adjust=2, colon_bottom_adjust=-1),
     "kenyancoffeerg": FontProfile(recommended_size=15, offset_y=-1, colon_dx=1, colon_top_adjust=2, colon_bottom_adjust=3),
     "kimberleybl": FontProfile(recommended_size=11, offset_y=-1, colon_top_adjust=3, colon_bottom_adjust=2),
+    "ipixel": FontProfile(recommended_size=10, offset_y=-1),
+    "pixeloidsans": FontProfile(recommended_size=10, offset_y=-1),
 }
 
 

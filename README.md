@@ -187,7 +187,7 @@ If `py -3.13` is not available, install the non–free-threaded Python 3.13 from
 - `scripts/display_text.py` – text rendering entrypoint.
   - `--mode static`: regular rendered frame via legacy image path.
   - `--mode scroll`: native panel-side scroll path.
-  - auto transport uses the validated **A1/type-4 route** for all text lengths.
+  - auto transport uses the validated **native-type4-route** for all text lengths.
   - supports `--color`, `--background`, and `--effect` (`fixed`, `scroll-left`, `scroll-right`, `blinking`, `breathing`, `snowflake`, `laser`).
 
   Launch examples:
@@ -199,7 +199,7 @@ If `py -3.13` is not available, install the non–free-threaded Python 3.13 from
 
 - `scripts/native_text_scroll_send.py` – low-level native text sender.
   - useful for protocol testing and effect validation.
-  - native route is A1/type-4 for all text lengths.
+  - native route is native-type4-route for all text lengths.
   - long payloads are sent as chunked continuation writes with verbose chunk logging.
 
   ```bash

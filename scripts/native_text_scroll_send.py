@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Native text sender for the ACT1025 panel.
 
-Uses the validated A1/type-4 native transport path.
+Uses the validated native type-4 route.
 """
 
 import argparse
@@ -20,9 +20,9 @@ BASE_PAYLOAD = bytes.fromhex(
     "45000001003600000000000000000202000101015000ffffff0000000000ffffff000000"
     "0000000000000000000000000000ffffff00000000000000000000000000000000"
 )
-A1_ROUTE_MARKER = 0x65
-A1_CHUNK_SIZE = 509
-A1_HEADER_BYTES = 15
+NATIVE_TYPE4_ROUTE_MARKER = 0x65
+NATIVE_TYPE4_CHUNK_SIZE = 509
+NATIVE_TYPE4_HEADER_BYTES = 15
 
 
 def parse_hex_color(value: str) -> tuple[int, int, int]:
@@ -105,7 +105,7 @@ EFFECT_CODES = {
 
 REVERSE_FOR_EFFECT = set()
 
-TRANSPORT_A1 = "a1"
+NATIVE_TYPE4_ROUTE = "native-type4-route"
 
 
 def build_content_payload(
@@ -195,7 +195,7 @@ def build_a1_total_data(
 ) -> bytes:
     text = text or " "
     if len(text) > 0xFF:
-        raise ValueError(f"native `{TRANSPORT_A1}` path currently supports up to 255 glyphs; got {len(text)}")
+        raise ValueError(f"native `{NATIVE_TYPE4_ROUTE}` path currently supports up to 255 glyphs; got {len(text)}")
     return build_text_record_body(
         text,
         fg_color=fg_color,
@@ -211,7 +211,7 @@ def build_a1_payload(
     bg_color: tuple[int, int, int] = (0, 0, 0),
     font_profile: str = "ipixel",
     effect_code: int = 1,
-    route_marker: int = A1_ROUTE_MARKER,
+    route_marker: int = NATIVE_TYPE4_ROUTE_MARKER,
 ) -> bytes:
     total_data = build_a1_total_data(
         text,
@@ -231,17 +231,17 @@ def build_a1_payload(
     return bytes(packet)
 
 
-def chunk_payload(payload: bytes, chunk_size: int = A1_CHUNK_SIZE) -> list[bytes]:
+def chunk_payload(payload: bytes, chunk_size: int = NATIVE_TYPE4_CHUNK_SIZE) -> list[bytes]:
     if chunk_size <= 0:
         raise ValueError("chunk_size must be positive")
     return [payload[idx:idx + chunk_size] for idx in range(0, len(payload), chunk_size)]
 
 
-def packet_debug_info(payload: bytes, text: str, chunk_size: int = A1_CHUNK_SIZE) -> dict[str, int | str]:
+def packet_debug_info(payload: bytes, text: str, chunk_size: int = NATIVE_TYPE4_CHUNK_SIZE) -> dict[str, int | str]:
     body_len = int.from_bytes(payload[5:9], "little")
     crc = int.from_bytes(payload[9:13], "little")
     return {
-        "route": TRANSPORT_A1,
+        "route": NATIVE_TYPE4_ROUTE,
         "chars": len(text or ""),
         "body_len": body_len,
         "packet_len": len(payload),
@@ -310,7 +310,7 @@ async def run(
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(description="Send native ACT1025 text payloads using the A1/type-4 transport")
+    ap = argparse.ArgumentParser(description="Send native ACT1025 text payloads using the native type-4 route")
     ap.add_argument("text", help="Text to display")
     ap.add_argument("--address", default="31:C3:BD:32:14:7A")
     ap.add_argument("--channel", type=int, default=3)
@@ -331,8 +331,8 @@ if __name__ == "__main__":
     ap.add_argument(
         "--a1-chunk-size",
         type=int,
-        default=A1_CHUNK_SIZE,
-        help=f"Continuation write size for `{TRANSPORT_A1}` payloads",
+        default=NATIVE_TYPE4_CHUNK_SIZE,
+        help=f"Continuation write size for `{NATIVE_TYPE4_ROUTE}` payloads",
     )
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument(

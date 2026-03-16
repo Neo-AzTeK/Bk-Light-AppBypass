@@ -17,7 +17,6 @@ from bk_light.text import build_text_bitmap
 from bk_light.display_session import BleDisplaySession, UUID_WRITE
 from scripts.native_text_scroll_send import (
     EFFECT_CODES,
-    TRANSPORT_A1,
     packet_debug_info,
     build_a1_payload,
     build_handshake,
@@ -119,7 +118,6 @@ async def send_native_scroll(
     effect: str = "scroll-left",
 ) -> None:
     effect_code = EFFECT_CODES.get(effect, EFFECT_CODES["scroll-left"])
-    mode = TRANSPORT_A1
     async with BleDisplaySession(address=config.device.address, log_notifications=False) as session:
         for pkt in (
             build_handshake(),
@@ -178,7 +176,7 @@ async def display_text(config: AppConfig, message: str, preset_name: str, overri
     mode = str(overrides.get("mode") or preset.mode)
     try:
         if mode == "native-scroll":
-            # Native panel-side scrolling over A1 transport.
+            # Native panel-side scrolling over the type-4 native route.
             effect = overrides.get("effect") or ("scroll-right" if preset.direction == "right" else "scroll-left")
             native_font_profile = str(font_path) if font_path else (str(font_ref) if font_ref else "ipixel")
             native_interval = float(overrides.get("interval") or 0.06)

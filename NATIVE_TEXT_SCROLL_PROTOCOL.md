@@ -6,9 +6,9 @@ Date: 2026-03-15
 
 After end-to-end hardware validation, the stable routing rule is:
 
-- **Default and supported route: `A1` for all text lengths** (`>= 1` char)
+- **Default and supported route: `native-type4-route` for all text lengths** (`>= 1` char)
 
-Reason: `A1` is the only route that validated consistently across short, medium, and long strings in our latest tests.
+Reason: `native-type4-route` is the only route that validated consistently across short, medium, and long strings in our latest tests.
 
 ## Handshake / open sequence
 
@@ -21,7 +21,7 @@ Before text payload, send:
 
 Then send text payload frame(s).
 
-## A1 frame (type-4 channel payload)
+## native-type4-route frame (type-4 channel payload)
 
 Observed accepted framing (from app captures and validated sender):
 

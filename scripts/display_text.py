@@ -14,6 +14,14 @@ from bk_light.config import AppConfig, load_config, text_options
 from bk_light.fonts import get_font_profile, resolve_font
 from bk_light.panel_manager import PanelManager
 from bk_light.text import build_text_bitmap
+from bk_light.display_session import BleDisplaySession, UUID_WRITE
+from scripts.native_text_scroll_send import (
+    EFFECT_CODES,
+    packet_debug_info,
+    build_a1_payload,
+    build_handshake,
+    chunk_payload,
+)
 
 
 def parse_color(value: Optional[str]) -> Optional[tuple[int, int, int]]:
@@ -68,35 +76,44 @@ def render_scroll_frame(
     return frame.convert("RGB")
 
 
-def precompute_scroll_frames(
-    canvas: tuple[int, int],
-    text_bitmap: Image.Image,
-    background: tuple[int, int, int],
-    direction: str,
-    gap: int,
-    offset_x: int,
-    offset_y: int,
-    step: int,
-) -> list[Image.Image]:
-    strip_width = max(1, text_bitmap.width + gap)
-    frame_positions = list(range(0, strip_width, max(1, step)))
-    if not frame_positions:
-        frame_positions = [0]
-    frames: list[Image.Image] = []
-    for position in frame_positions:
-        frames.append(
-            render_scroll_frame(
-                canvas,
-                text_bitmap,
-                background,
-                direction,
-                gap,
-                offset_x,
-                offset_y,
-                position,
-            )
+async def send_native_scroll(
+    config: AppConfig,
+    message: str,
+    channel: int = 3,
+    interval: float = 0.06,
+    fg_color: tuple[int, int, int] = (255, 255, 255),
+    bg_color: tuple[int, int, int] = (0, 0, 0),
+    font_profile: str = "ipixel",
+    effect: str = "scroll-left",
+) -> None:
+    effect_code = EFFECT_CODES.get(effect, EFFECT_CODES["scroll-left"])
+    async with BleDisplaySession(address=config.device.address, log_notifications=False) as session:
+        for pkt in (
+            build_handshake(),
+            bytes.fromhex("04000580"),
+            bytes.fromhex("0500128007"),
+            bytes.fromhex(f"070008800100{channel:02x}"),
+        ):
+            await session.client.write_gatt_char(UUID_WRITE, pkt, response=False)
+            await asyncio.sleep(interval)
+
+        payload = build_a1_payload(
+            message,
+            fg_color=fg_color,
+            bg_color=bg_color,
+            font_profile=font_profile,
+            effect_code=effect_code,
         )
-    return frames
+        debug = packet_debug_info(payload, message)
+        print(
+            f"native-text route={debug['route']} chars={debug['chars']} body_len={debug['body_len']} "
+            f"packet_len={debug['packet_len']} chunks={debug['chunk_count']} "
+            f"crc=0x{debug['crc']:08x}"
+        )
+        for chunk in chunk_payload(payload):
+            await session.client.write_gatt_char(UUID_WRITE, chunk, response=False)
+            await asyncio.sleep(interval)
+
 
 async def display_text(config: AppConfig, message: str, preset_name: str, overrides: dict[str, Optional[str]]) -> None:
     preset = text_options(config, preset_name, overrides)
@@ -125,8 +142,24 @@ async def display_text(config: AppConfig, message: str, preset_name: str, overri
     )
     offset_x_base = preset.offset_x + profile.offset_x
     offset_y_base = preset.offset_y + profile.offset_y
+    mode = str(overrides.get("mode") or preset.mode)
     try:
-        if preset.mode == "scroll":
+        if mode == "native-scroll":
+            effect = overrides.get("effect") or ("scroll-right" if preset.direction == "right" else "scroll-left")
+            native_font_profile = str(font_path) if font_path else (str(font_ref) if font_ref else "ipixel")
+            native_interval = float(overrides.get("interval") or 0.06)
+            await send_native_scroll(
+                config,
+                message,
+                channel=3,
+                interval=native_interval,
+                fg_color=color,
+                bg_color=background,
+                font_profile=native_font_profile,
+                effect=effect,
+            )
+            await asyncio.sleep(0.2)
+        elif mode == "scroll":
             gap_override = overrides.get("gap")
             base_gap = gap_override if gap_override is not None else preset.gap
             gap = int(base_gap) if base_gap is not None else 16
@@ -143,34 +176,24 @@ async def display_text(config: AppConfig, message: str, preset_name: str, overri
 
             # Keep a persistent BLE session for smooth scrolling.
             # Periodic reconnects introduce visible freezes on ACT1025.
+            position = 0
             next_tick = asyncio.get_running_loop().time()
             async with PanelManager(config) as manager:
                 canvas = manager.canvas_size
-                # Build one full animation cycle once, then replay it in a loop.
-                # This removes per-frame rasterization jitter and mimics an "array of frames" pipeline.
-                frames = precompute_scroll_frames(
-                    canvas,
-                    text_bitmap,
-                    background,
-                    preset.direction,
-                    gap,
-                    offset_x_base,
-                    offset_y_base,
-                    step,
-                )
-                frame_index = 0
-                loop_guard_counter = 0
                 while True:
-                    frame = frames[frame_index]
+                    frame = render_scroll_frame(
+                        canvas,
+                        text_bitmap,
+                        background,
+                        preset.direction,
+                        gap,
+                        offset_x_base,
+                        offset_y_base,
+                        position,
+                    )
                     # Small transport delay avoids overdriving BLE writes (reduces end-of-run freezes).
                     await manager.send_image(frame, delay=0.01)
-                    frame_index = (frame_index + 1) % len(frames)
-
-                    # Guardrail: brief pause at full-cycle boundaries helps avoid firmware lockups.
-                    if frame_index == 0:
-                        loop_guard_counter += 1
-                        if loop_guard_counter % 1 == 0:
-                            await asyncio.sleep(0.04)
+                    position = (position + step) % strip_width
 
                     # Target a steady frame cadence while avoiding busy loops.
                     next_tick += interval
@@ -221,8 +244,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--font", type=Path)
     parser.add_argument("--size", type=int)
     parser.add_argument("--spacing", type=int)
-    parser.add_argument("--mode", choices=("static", "scroll"))
+    parser.add_argument("--mode", choices=("static", "scroll", "native-scroll"))
     parser.add_argument("--direction", choices=("left", "right"))
+    parser.add_argument(
+        "--effect",
+        choices=("fixed", "scroll-left", "scroll-right", "blinking", "breathing", "snowflake", "laser"),
+    )
     parser.add_argument("--speed", type=float)
     parser.add_argument("--gap", type=int)
     parser.add_argument("--step", type=int)
@@ -241,6 +268,7 @@ def build_override_map(args: argparse.Namespace) -> dict[str, Optional[str]]:
         "spacing": args.spacing,
         "mode": args.mode,
         "direction": args.direction,
+        "effect": args.effect,
         "speed": args.speed,
         "gap": args.gap,
         "step": args.step,
@@ -261,4 +289,3 @@ if __name__ == "__main__":
         asyncio.run(display_text(config, args.text, preset_name, overrides))
     except KeyboardInterrupt:
         pass
-

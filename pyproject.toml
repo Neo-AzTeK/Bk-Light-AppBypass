@@ -1,0 +1,32 @@
+[project]
+name = "bk-light-appbypass"
+version = "0.1.0"
+description = "Utilities for driving BK-Light RGB LED matrices over Bluetooth Low Energy"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "bleak>=0.22.3",
+    "httpx>=0.28.1",
+    "pillow>=11.1.0",
+    "psutil>=6.1.1",
+    "pyyaml>=6.0.2",
+]
+
+[project.scripts]
+bk-light = "scripts.production:main"
+dashboard = "scripts.dashboard:main"
+preview = "scripts.preview:main"
+setup = "scripts.setup:main"
+
+[tool.uv]
+package = true
+
+[dependency-groups]
+dev = []
+
+[tool.hatch.build.targets.wheel]
+packages = ["bk_light", "scripts"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

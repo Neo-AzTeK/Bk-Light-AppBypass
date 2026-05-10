@@ -5,13 +5,24 @@ from typing import Optional
 from PIL import Image, ImageDraw, ImageFont
 
 
+_FONT_CACHE: dict[tuple[Optional[str], int], ImageFont.ImageFont] = {}
+
+
 def load_font(path: Optional[Path], size: int) -> ImageFont.ImageFont:
+    cache_key = (str(path) if path else None, size)
+    if cache_key in _FONT_CACHE:
+        return _FONT_CACHE[cache_key]
+        
     if path is None:
-        return ImageFont.load_default()
-    try:
-        return ImageFont.truetype(str(path), size)
-    except Exception:
-        return ImageFont.load_default()
+        font = ImageFont.load_default()
+    else:
+        try:
+            font = ImageFont.truetype(str(path), size)
+        except Exception:
+            font = ImageFont.load_default()
+            
+    _FONT_CACHE[cache_key] = font
+    return font
 
 
 def build_text_bitmap(

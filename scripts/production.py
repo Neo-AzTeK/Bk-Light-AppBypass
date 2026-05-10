@@ -77,30 +77,30 @@ def merge_options(config: AppConfig, args: argparse.Namespace) -> Dict[str, obje
 async def run_mode(config: AppConfig, mode: str, preset_name: str, options: Dict[str, str]) -> None:
     mode = mode.lower()
     if mode == "clock":
-        from scripts.clock_display import run_clock
+        from bk_light.modes.clock_display import run_clock
         await run_clock(config, preset_name, options)
     elif mode == "text":
-        from scripts.display_text import display_text
+        from bk_light.modes.display_text import display_text
         message = options.get("text")
         if not message:
             raise ValueError("Text mode requires a message. Provide runtime.options.text or --text.")
         overrides = {k: v for k, v in options.items() if k != "text"}
         await display_text(config, message, preset_name, overrides)
     elif mode == "image":
-        from scripts.send_image import send_image
+        from bk_light.modes.send_image import send_image
         image_path = options.get("image")
         if not image_path:
             raise ValueError("Image mode requires an image path. Provide runtime.options.image or --image.")
         overrides = {k: v for k, v in options.items() if k != "image"}
         await send_image(config, Path(image_path), preset_name, overrides)
     elif mode == "counter":
-        from scripts.increment_counter import run_counter
+        from bk_light.modes.increment_counter import run_counter
         await run_counter(config, preset_name, options)
     else:
         raise ValueError(f"Unsupported mode '{mode}'")
 
 
-if __name__ == "__main__":
+def main():
     args = parse_args()
     config = load_config(args.config)
     if args.address:
@@ -109,4 +109,8 @@ if __name__ == "__main__":
     preset_name = args.preset or config.runtime.preset or "default"
     options = merge_options(config, args)
     asyncio.run(run_mode(config, mode, preset_name, options))
+
+
+if __name__ == "__main__":
+    main()
 

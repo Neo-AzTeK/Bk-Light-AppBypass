@@ -223,8 +223,14 @@ class BleDisplaySession:
                         await asyncio.sleep(delay)
                     self._handshake_primed = True
 
-                # Keep acknowledged write for frame payload: slower but much more stable on ACT1025.
-                await self.client.write_gatt_char(UUID_WRITE, frame, response=True)
+                # MANUAL FRAGMENTATION (Performance Hack for Windows)
+                # Instead of one large slow write, we split the frame into MTU chunks 
+                # and send them unacknowledged for speed, then wait for the final hardware ACK.
+                mtu = self.client.mtu_size - 3
+                for i in range(0, len(frame), mtu):
+                    chunk = frame[i : i + mtu]
+                    await self.client.write_gatt_char(UUID_WRITE, chunk, response=False)
+                
                 await wait_for_ack(self.watcher.stage_three, "FRAME_ACK", self.log_notifications)
                 self._frames_since_validation += 1
                 if self._frames_since_validation >= self._validation_every:

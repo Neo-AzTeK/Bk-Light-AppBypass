@@ -1,4 +1,0 @@
-bleak
-Pillow
-PyYAML
-

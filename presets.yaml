@@ -1,0 +1,98 @@
+presets:
+  clock:
+    default:
+      format: 24h
+      theme: dark
+      color: "#E2E8FF"
+      accent: "#6E7DFF"
+      background: "#000000"
+      font: "aldopc"
+      interval: 0.5
+      dot_flashing: true
+      dot_flash_period: 1.0
+  text:
+    default:
+      color: "#FF0000"
+      background: "#000000"
+      font: null
+      size: 18
+      spacing: 1
+      mode: static
+      direction: left
+      speed: 24.0
+      gap: 32
+      offset_x: 0
+      offset_y: 0
+      interval: 0.05
+    marquee_left:
+      color: "#00FFAA"
+      background: "#000000"
+      mode: scroll
+      direction: left
+      speed: 30.0
+      step: 3
+      gap: 32
+      size: 18
+      spacing: 2
+      offset_y: 0
+      interval: 0.04
+    marquee_right:
+      color: "#FFFFFF"
+      background: "#000000"
+      mode: scroll
+      direction: right
+      speed: 20.0
+      step: 2
+      gap: 48
+      size: 20
+      spacing: 1
+      offset_y: -2
+      interval: 0.05
+  image:
+    default:
+      mode: fit
+      rotate: 0
+      mirror: false
+      invert: false
+  counter:
+    default:
+      start: 0
+      count: 10
+      delay: 1.0
+
+  fire:
+    default:
+      speed: 2 # Number of propagation steps per frame
+      palette_interval: 15 # Seconds before switching colors
+      palettes:
+        classic: [[0,0,0], [31,7,7], [71,15,7], [119,31,7], [159,47,7], [191,71,7], [223,87,7], [255,255,255]]
+        ice: [[0,0,0], [7,7,31], [15,15,71], [31,31,119], [47,47,159], [71,71,191], [87,87,223], [255,255,255]]
+        emerald: [[0,0,0], [7,31,7], [15,71,15], [31,119,31], [47,159,47], [71,191,71], [87,223,87], [255,255,255]]
+        toxic: [[0,0,0], [31,31,0], [71,71,0], [119,119,0], [159,159,0], [191,191,0], [223,223,0], [255,255,255]]
+        void: [[0,0,0], [15,0,31], [31,0,71], [63,0,119], [95,0,159], [127,0,191], [159,0,223], [255,255,255]]
+
+  github:
+    default:
+      username: "neo-aztek"
+      cache_ttl: 3600 # 1 hour
+      colors:
+        "0": [0, 0, 0]
+        "1": [0, 64, 0]
+        "2": [0, 128, 0]
+        "3": [0, 192, 0]
+        "4": [0, 255, 0]
+
+  weather:
+    default:
+      latitude: 48.8566
+      longitude: 2.3522
+      city: "Paris"
+      cache_ttl: 1800 # 30 minutes
+
+  game_of_life:
+    default:
+      new_cell_color: [255, 255, 255] # White
+      old_cell_color: [0, 255, 255]    # Cyan
+      max_age: 10                     # Generations until max color shift
+      stagnation_limit: 30            # Frames before resetting
+      max_simulation_time: 30         # Seconds before forcing a reset

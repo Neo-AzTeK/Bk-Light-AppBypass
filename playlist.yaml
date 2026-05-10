@@ -1,0 +1,29 @@
+# Dashboard Playlist
+# Add widgets and their durations in seconds
+playlist:
+  - widget: clock
+    duration: 10
+  - widget: pong
+    duration: 30
+  - widget: system
+    duration: 10
+  - widget: fire
+    duration: 15
+  - widget: weather
+    duration: 10
+  - widget: github
+    duration: 10
+  - widget: pokemon
+    duration: 15
+  - widget: nouns
+    duration: 15
+  - widget: roses
+    duration: 15
+  - widget: fractal
+    duration: 20
+  - widget: geometry
+    duration: 15
+  - widget: threed
+    duration: 15
+  - widget: dvd
+    duration: 20

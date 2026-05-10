@@ -76,6 +76,37 @@ class CounterPreset:
 
 
 @dataclass
+class FirePreset:
+    speed: int = 1
+    palette_interval: float = 15.0
+    palettes: Dict[str, list] = field(default_factory=dict)
+
+
+@dataclass
+class GithubPreset:
+    username: str = "neo-aztek"
+    cache_ttl: int = 3600
+    colors: Dict[str, list] = field(default_factory=dict)
+
+
+@dataclass
+class WeatherPreset:
+    latitude: float = 48.8566
+    longitude: float = 2.3522
+    city: str = "Paris"
+    cache_ttl: int = 1800
+
+
+@dataclass
+class GameOfLifePreset:
+    new_cell_color: list = field(default_factory=lambda: [255, 255, 255])
+    old_cell_color: list = field(default_factory=lambda: [0, 255, 255])
+    max_age: int = 10
+    stagnation_limit: int = 30
+    max_simulation_time: int = 30
+
+
+@dataclass
 class DeviceConfig:
     address: Optional[str] = None
     auto_reconnect: bool = True
@@ -120,6 +151,10 @@ class PresetLibrary:
     text: Dict[str, TextPreset] = field(default_factory=dict)
     image: Dict[str, ImagePreset] = field(default_factory=dict)
     counter: Dict[str, CounterPreset] = field(default_factory=dict)
+    fire: Dict[str, FirePreset] = field(default_factory=dict)
+    github: Dict[str, GithubPreset] = field(default_factory=dict)
+    weather: Dict[str, WeatherPreset] = field(default_factory=dict)
+    game_of_life: Dict[str, GameOfLifePreset] = field(default_factory=dict)
 
 
 @dataclass
@@ -136,6 +171,10 @@ class AppConfig:
     panels: PanelsConfig = field(default_factory=PanelsConfig)
     presets: PresetLibrary = field(default_factory=PresetLibrary)
     runtime: RuntimeConfig = field(default_factory=RuntimeConfig)
+    playlist: list[dict] = field(default_factory=list) # Now a list of dicts for durations
+    location: dict = field(default_factory=dict)
+    github: dict = field(default_factory=dict)
+    dashboard: dict = field(default_factory=dict)
 
 
 DEFAULTS: Dict[str, Any] = {
@@ -346,8 +385,24 @@ def _build_panels(data: Dict[str, Any]) -> PanelsConfig:
 
 
 def load_config(path: Optional[Path] = None) -> AppConfig:
+    # 1. Load Main Config
     path = path or Path("config.yaml")
     overrides = _load_yaml(path)
+    
+    # 2. Load Presets (optional file)
+    presets_path = Path("presets.yaml")
+    if presets_path.exists():
+        preset_overrides = _load_yaml(presets_path)
+        if "presets" in preset_overrides:
+            overrides = _merge_dict(overrides, preset_overrides)
+            
+    # 3. Load Playlist (optional file)
+    playlist_path = Path("playlist.yaml")
+    playlist_data = []
+    if playlist_path.exists():
+        playlist_overrides = _load_yaml(playlist_path)
+        playlist_data = playlist_overrides.get("playlist", [])
+
     merged = _merge_dict(DEFAULTS, overrides)
     device_data = merged.get("device", {})
     device = DeviceConfig(**device_data)
@@ -367,19 +422,39 @@ def load_config(path: Optional[Path] = None) -> AppConfig:
         text=_build_text_presets(presets_data.get("text", {})),
         image=_build_image_presets(presets_data.get("image", {})),
         counter=_build_counter_presets(presets_data.get("counter", {})),
+        fire={name: FirePreset(**v) for name, v in presets_data.get("fire", {}).items()},
+        github={name: GithubPreset(**v) for name, v in presets_data.get("github", {}).items()},
+        weather={name: WeatherPreset(**v) for name, v in presets_data.get("weather", {}).items()},
+        game_of_life={name: GameOfLifePreset(**v) for name, v in presets_data.get("game_of_life", {}).items()},
     )
+    if "default" not in preset_library.fire:
+        preset_library.fire["default"] = FirePreset()
+    if "default" not in preset_library.github:
+        preset_library.github["default"] = GithubPreset()
+    if "default" not in preset_library.weather:
+        preset_library.weather["default"] = WeatherPreset()
+    if "default" not in preset_library.game_of_life:
+        preset_library.game_of_life["default"] = GameOfLifePreset()
     runtime_data = merged.get("runtime", {})
     runtime = RuntimeConfig(
         mode=runtime_data.get("mode", "clock"),
         preset=runtime_data.get("preset", "default"),
         options=runtime_data.get("options", {}) or {},
     )
+    
+    # Playlist can also be in config.yaml for backwards compatibility, but playlist.yaml wins
+    final_playlist = playlist_data or merged.get("playlist", [])
+    
     return AppConfig(
         device=device,
         display=display,
         panels=panels,
         presets=preset_library,
         runtime=runtime,
+        playlist=final_playlist,
+        location=merged.get("location", {}),
+        github=merged.get("github", {}),
+        dashboard=merged.get("dashboard", {}),
     )
 
 

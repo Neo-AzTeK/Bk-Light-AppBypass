@@ -20,7 +20,7 @@ Everything is now configurable through `config.yaml`, so you can define presets,
 ## Requirements
 
 - Python 3.13+
-- `pip install bleak Pillow PyYAML`
+- `uv` (modern Python package manager)
 - Bluetooth adapter with BLE support enabled
 - Hardware capabilities:
   - BLE 4.0 or newer with GATT/ATT support
@@ -33,16 +33,21 @@ The tools assume the screen advertises as `LED_BLE_*` (BK-Light firmware). Updat
 
 ## Acknowledgment (Windows / Python 3.13)
 
-If you see `ModuleNotFoundError: No module named 'bleak'` or `ModuleNotFoundError: No module named 'PIL'` after `pip install -r requirements.txt`, or a **LNK1104** / failed wheel build for `winrt-Windows.Devices.Bluetooth.GenericAttributeProfile`, you are likely using the **free-threaded** Python 3.13 build (`python3.13t`). Bleak’s Windows dependencies (winrt) do not ship pre-built wheels for that variant, so pip tries to compile them and the build often fails.
+If you see `ModuleNotFoundError: No module named 'bleak'` or `ModuleNotFoundError: No module named 'PIL'` after `uv sync`, or a **LNK1104** / failed wheel build for `winrt-Windows.Devices.Bluetooth.GenericAttributeProfile`, you are likely using the **free-threaded** Python 3.13 build (`python3.13t`). Bleak’s Windows dependencies (winrt) do not ship pre-built wheels for that variant, so uv/pip tries to compile them and the build often fails.
 
-Use the **standard** Python 3.13 (not the “t” build) for this project. Example:
+Use the **standard** Python 3.13 (not the “t” build) for this project.
+
+With `uv`, you can just run:
 
 ```powershell
-py -3.13 -m pip install -r requirements.txt
-py -3.13 .\scripts\production.py
+uv run bk-light
 ```
 
-If `py -3.13` is not available, install the non–free-threaded Python 3.13 from [python.org](https://www.python.org/downloads/) and use that interpreter for install and run.
+Or for specific scripts:
+
+```powershell
+uv run scripts/production.py
+```
 
 ## Project Structure
 
@@ -61,10 +66,10 @@ If `py -3.13` is not available, install the non–free-threaded Python 3.13 from
 
 ## Quick Start
 
-1. Install dependencies:
+1. Initialize the environment:
 
    ```bash
-   pip install bleak Pillow PyYAML
+   uv sync
    ```
 
 2. Edit `config.yaml`.
@@ -162,19 +167,19 @@ If `py -3.13` is not available, install the non–free-threaded Python 3.13 from
 4. Launch the production entrypoint:
 
    ```bash
-   python scripts/production.py
+   uv run bk-light
    ```
 
    Override anything ad hoc:
 
    ```bash
-   python scripts/production.py --mode text --text "HELLO" --option color=#00FFAA
+   uv run bk-light --mode text --text "HELLO" --option color=#00FFAA
    ```
 
 5. Need to identify MAC ↔ panel placement or force a clean BLE reset? Run:
 
    ```bash
-   python scripts/identify_panels.py
+   uv run scripts/identify_panels.py
    ```
 
    (Each panel displays its index and then disconnects cleanly.)
@@ -203,7 +208,7 @@ If `py -3.13` is not available, install the non–free-threaded Python 3.13 from
   Launch:
 
   ```bash
-  python scripts/display_text.py "HELLO" --preset marquee_left
+  uv run scripts/display_text.py "HELLO" --preset marquee_left
   ```
 
 - `scripts/send_image.py` – uploads any image with fit/cover/scale + rotate/mirror/invert.
@@ -218,7 +223,7 @@ If `py -3.13` is not available, install the non–free-threaded Python 3.13 from
   - `Kimberley Bl`
 
   ```bash
-  python scripts/list_fonts.py [--config config.yaml]
+  uv run scripts/list_fonts.py [--config config.yaml]
   ```
 
 Each script honours `--config`, `--address`, and preset overrides so you can reuse the same YAML in development or production.
